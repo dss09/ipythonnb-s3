@@ -133,13 +133,10 @@ class S3NotebookManager(NotebookManager):
         * created
         * type='directory'
         """
-        if not self.path_exists(path):
-            raise IOError('directory does not exist: %r' % path)
-
         # Create the directory model.
-        model ={}
+        model = dict()
         model['name'] = name
-        model['path'] = path.strip('/')
+        model['path'] = path
         model['last_modified'] = datetime.datetime.utcnow()
         model['created'] = datetime.datetime.utcnow()
         model['type'] = 'directory'
@@ -166,7 +163,6 @@ class S3NotebookManager(NotebookManager):
             the notebook model. If contents=True, returns the 'contents'
             dict in the model as well.
         """
-
         self.log.debug("get_notebook('%s', '%s', %s)", name, path, str(content))
         assert name.endswith(self.filename_ext)
 
@@ -218,8 +214,10 @@ class S3NotebookManager(NotebookManager):
             Whether the path is hidden.
 
         """
-        # Nothing is hidden.
-        return False
+        if '.ipynb_checkpoints' in path:
+            return True
+        else:
+            return False
 
     # The method list_checkpoints is called by the server to
     # prepare the list of checkpoints shown in the File menu
@@ -247,16 +245,21 @@ class S3NotebookManager(NotebookManager):
     def list_dirs(self, path):
         """List the directory models for a given API style path."""
         s3_path = os.path.join(self.s3_prefix, path)
-
         self.log.debug("list_dirs('%s')", s3_path)
-        s3_path = s3_path.strip('/')
 
-        dirs = self.bucket.list(s3_path, '/')
+        dirs = self.bucket.list(prefix=s3_path, delimiter='/')
         dirlist = []
         for entry in dirs:
-            if type(entry) is prefix.Prefix:
-                dirlist.append(entry.name)
-        dirlist.sort()
+            if type(entry) is prefix.Prefix and '.ipynb_checkpoints' not in entry.name:
+                try:
+                    # For some reason path is always empty
+                    model = self.get_dir_model(entry.name.replace(self.s3_prefix, ''),
+                                               entry.name.replace(self.s3_prefix, ''))
+                    dirlist.append(model)
+                except IOError:
+                    pass
+
+        dirlist = sorted(dirlist, key=lambda item: item['name'])
 
         self.log.debug("list_dirs -> %s", str(dirlist))
         return dirlist
@@ -281,7 +284,6 @@ class S3NotebookManager(NotebookManager):
         for entry in self.bucket.list(prefix=s3_path, delimiter='/'):
             if type(entry) is key.Key:
                 nb_name = entry.key[len(self.s3_prefix):]
-                #this_notebook = self.get_notebook(entry.key, path, content=True)
                 notebooks.append({'name': nb_name, 'notebook_id': nb_name})
         notebooks = sorted(notebooks, key=lambda item: item['name'])
 
@@ -332,8 +334,11 @@ class S3NotebookManager(NotebookManager):
         if path == '':
             return True
         else:
+            if not path.endswith('/'):
+                path += '/'
+
             all_dirs = self.list_dirs('')
-            exists = path in all_dirs
+            exists = path in [p['path'] for p in all_dirs]
             self.log.debug("path_exists('%s') -> %s", path, str(exists))
             return exists
 
