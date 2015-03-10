@@ -2,7 +2,7 @@
 
 [IPython notebook](http://ipython.org/ipython-doc/dev/interactive/htmlnotebook.html) manager which saves to [S3](http://aws.amazon.com/s3/).
 
-Works with IPython 1.1.0
+Works with IPython 2.x
 
 By default the notebook server stores the notebook files in a local directory.
 This plugin seamlessly stores and reads the notebooks files from and to an S3 bucket.
@@ -41,6 +41,18 @@ It requires credentials to an AWS account.
 
     If you store your notebooks in ``s3://bucket/simulations/notebooks/`` then
     set ``c.S3NotebookManager.s3_prefix = 'simulations/notebooks/'``
+
+    You can also set ``c.S3NotebookManager.s3_host`` if you are using a region other than us-east-1
+
+    The following options are useful if running the server as a background process
+
+    ```python
+    c.Application.verbose_crash = True
+    c.NotebookApp.open_browser = False
+    c.NotebookApp.port = 8888
+    c.NotebookApp.ip = '*'
+    c.NotebookApp.profile = 'nbserver'
+    ```
 
 4. Start notebook server:
 
